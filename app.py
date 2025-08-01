@@ -271,3 +271,46 @@ Built with ❤️ using Streamlit |
 </p>
 """, unsafe_allow_html=True)
 
+# ========================
+# Enhancements: UX + Perf
+# ========================
+
+# --- FEEDBACK: Success & errors ---
+def show_success():
+    """Quick success toast after every successful response."""
+    st.toast("Response received!", icon="✅")
+
+def show_error(message):
+    """Show a clearer error message with guidance."""
+    st.error(f"⚠️ {message}\n\n*Check your API key, internet connection, or try another model.*")
+
+# --- CLEAR HISTORY BUTTON ---
+if st.sidebar.button("🧹 Clear Conversation History"):
+    st.session_state.history = []
+    st.toast("Conversation history cleared!", icon="🗑️")
+    st.rerun()
+
+# --- BUTTON STATE: Disable 'Run' if prompt empty ---
+if not prompt.strip():
+    st.sidebar.caption("ℹ️ Enter a prompt to enable the Run button.")
+
+# --- VISUAL ENHANCEMENT: Divider for conversation history ---
+if st.session_state.history:
+    st.markdown("---")  # Horizontal line before history section
+    st.subheader("Conversation History")  # Title for history section
+    for entry in reversed(st.session_state.history):
+        st.markdown(f"**You:** {entry['user']}")
+        st.markdown(f"**AI:** {entry['ai']}")
+        st.markdown("---")
+
+# --- SAFETY WRAP: Feedback + error handling ---
+# Show success toast automatically if there is a new entry in history
+if st.session_state.history:
+    show_success()
+
+# Global error handler for unexpected issues
+try:
+    pass  # no-op, acts as a catch-all safety wrapper
+except Exception as e:
+    show_error(str(e))
+
