@@ -6,9 +6,6 @@ import patch_header
 def apply_patches():
     patch_header.inject_header()
 
-# Hook: Streamlit runs this after the app starts
-st_patch_hooks = apply_patches
-
 # Launch original app
 streamlit.web.bootstrap.run("app.py", "", [], {})
 
