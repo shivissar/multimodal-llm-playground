@@ -201,6 +201,7 @@ def call_meta(model_name, prompt, api_key):
 # ----------------------------
 if st.button("Run", type="primary"):
     try:
+    with st.spinner("⚡ Summoning the LLM..."):   # <-- ADD THIS
         response = ""
         if api_choice == "OpenAI":
             if not st.session_state.api_keys["OPENAI_API_KEY"]:
@@ -254,4 +255,13 @@ if st.session_state.history:
                 file_name=filename,
                 mime="application/json",
             )
+
+# --- Footer / Credits ---
+st.markdown("""
+<hr style='margin-top:50px'>
+<p style='text-align:center; font-size:12px;'>
+Built with ❤️ using Streamlit | 
+<a href="https://github.com/shivissar/multimodal-llm-playground" target="_blank">View on GitHub</a>
+</p>
+""", unsafe_allow_html=True)
 
