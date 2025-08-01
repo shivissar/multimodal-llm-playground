@@ -201,37 +201,42 @@ def call_meta(model_name, prompt, api_key):
 # ----------------------------
 if st.button("Run", type="primary"):
     try:
-        # Added spinner wrapper here
+        # Wrap everything in spinner
         with st.spinner("⚡ Summoning the LLM..."):
             response = ""
+
             if api_choice == "OpenAI":
                 if not st.session_state.api_keys["OPENAI_API_KEY"]:
                     st.error("Please enter your OpenAI API key.")
                 else:
                     response = call_openai(model_choice, prompt, st.session_state.api_keys["OPENAI_API_KEY"])
+
             elif api_choice == "Gemini":
                 if not st.session_state.api_keys["GOOGLE_API_KEY"]:
                     st.error("Please enter your Gemini API key.")
                 else:
                     response = call_gemini(model_choice, prompt, st.session_state.api_keys["GOOGLE_API_KEY"])
+
             elif api_choice == "Hugging Face":
                 if not st.session_state.api_keys["HF_API_KEY"]:
                     st.error("Please enter your Hugging Face API key.")
                 else:
                     response = call_huggingface(model_choice, prompt, st.session_state.api_keys["HF_API_KEY"])
+
             elif api_choice == "Meta (LLaMA)":
                 if not st.session_state.api_keys["META_API_KEY"]:
                     st.error("Please enter your Meta (LLaMA) API key.")
                 else:
                     response = call_meta(model_choice, prompt, st.session_state.api_keys["META_API_KEY"])
 
+            # Output response and prevent duplicate entries
             st.markdown(f"**AI:** {response}")
-            # --- FIX: Prevent duplicate history entries ---
             if not st.session_state.history or st.session_state.history[-1]["ai"] != response:
-            st.session_state.history.append({"user": prompt, "ai": response})
+                st.session_state.history.append({"user": prompt, "ai": response})
 
-            except Exception as e:
-            st.error(f"An error occurred: {e}")
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+
 
 # ----------------------------
 # History + Export
