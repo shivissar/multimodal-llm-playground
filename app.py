@@ -28,23 +28,52 @@ MODEL_COSTS = {
 # ----------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
+if "api_keys" not in st.session_state:
+    st.session_state.api_keys = {
+        "OPENAI_API_KEY": "",
+        "GOOGLE_API_KEY": "",
+        "HF_API_KEY": "",
+        "META_API_KEY": ""
+    }
 
 # ----------------------------
-# API Keys (Now includes Meta)
+# Sidebar: API Keys + Save/Clear
 # ----------------------------
 st.sidebar.header("API Keys")
-openai_key = st.sidebar.text_input("OpenAI Key", type="password")
-gemini_key = st.sidebar.text_input("Google Gemini Key", type="password")
-hf_key = st.sidebar.text_input("Hugging Face Key", type="password")
-meta_key = st.sidebar.text_input("Meta (LLaMA) Key", type="password")
+openai_key = st.sidebar.text_input("OpenAI Key", value=st.session_state.api_keys["OPENAI_API_KEY"], type="password")
+gemini_key = st.sidebar.text_input("Google Gemini Key", value=st.session_state.api_keys["GOOGLE_API_KEY"], type="password")
+hf_key = st.sidebar.text_input("Hugging Face Key", value=st.session_state.api_keys["HF_API_KEY"], type="password")
+meta_key = st.sidebar.text_input("Meta (LLaMA) Key", value=st.session_state.api_keys["META_API_KEY"], type="password")
+
+col1, col2 = st.sidebar.columns(2)
+if col1.button("Save Keys"):
+    st.session_state.api_keys["OPENAI_API_KEY"] = openai_key
+    st.session_state.api_keys["GOOGLE_API_KEY"] = gemini_key
+    st.session_state.api_keys["HF_API_KEY"] = hf_key
+    st.session_state.api_keys["META_API_KEY"] = meta_key
+    st.sidebar.success("Keys saved!")
+if col2.button("Clear Keys"):
+    st.session_state.api_keys = {k: "" for k in st.session_state.api_keys}
+    st.sidebar.warning("Keys cleared!")
 
 # ----------------------------
-# API Choice and Dynamic Models
+# API Choice
 # ----------------------------
 api_choice = st.selectbox("Choose API", ["OpenAI", "Gemini", "Hugging Face", "Meta (LLaMA)"])
 
+# ----------------------------
+# Dynamic Model Lists
+# ----------------------------
+def fetch_openai_models(api_key):
+    try:
+        client = openai.OpenAI(api_key=api_key)
+        models = [m.id for m in client.models.list().data if "gpt" in m.id]
+        return models
+    except:
+        return ["gpt-4.1", "gpt-4o", "gpt-4-turbo"]
+
 if api_choice == "OpenAI":
-    model_options = ["gpt-4.1", "gpt-4o", "gpt-4-turbo"]
+    model_options = fetch_openai_models(st.session_state.api_keys["OPENAI_API_KEY"])
 elif api_choice == "Gemini":
     model_options = ["gemini-1.5-pro", "gemini-1.5-flash"]
 elif api_choice == "Hugging Face":
@@ -55,13 +84,12 @@ elif api_choice == "Meta (LLaMA)":
 model_choice = st.selectbox("Choose Model", model_options)
 
 # ----------------------------
-# Prompt Input
+# Prompt Input + Cost Estimate
 # ----------------------------
 prompt = st.text_area("Enter your prompt:")
 
-# Token & cost estimate
 def estimate_cost(prompt: str, model: str):
-    token_count = max(1, len(prompt) // 4)  # Rough estimate
+    token_count = max(1, len(prompt) // 4)  # Rough estimate: 4 chars/token
     cost_per_1k = MODEL_COSTS.get(model, 0)
     cost_estimate = (token_count / 1000) * cost_per_1k
     return token_count, cost_estimate
@@ -70,7 +98,7 @@ tokens, cost = estimate_cost(prompt, model_choice)
 st.caption(f"Estimated tokens: **{tokens}** | Estimated cost: **${cost:.3f}** USD")
 
 # ----------------------------
-# API Functions
+# API Call Functions
 # ----------------------------
 def call_openai(model_name, prompt, api_key):
     client = openai.OpenAI(api_key=api_key)
@@ -93,7 +121,6 @@ def call_huggingface(model_name, prompt, api_key):
     return resp.json()[0].get('generated_text', str(resp.json()))
 
 def call_meta(model_name, prompt, api_key):
-    # Meta models are hosted on Hugging Face
     headers = {"Authorization": f"Bearer {api_key}"}
     hf_url = f"https://api-inference.huggingface.co/models/{model_name}"
     data = {"inputs": prompt}
@@ -106,26 +133,27 @@ def call_meta(model_name, prompt, api_key):
 # ----------------------------
 if st.button("Run", type="primary"):
     try:
+        response = ""
         if api_choice == "OpenAI":
-            if not openai_key:
+            if not st.session_state.api_keys["OPENAI_API_KEY"]:
                 st.error("Please enter your OpenAI API key.")
             else:
-                response = call_openai(model_choice, prompt, openai_key)
+                response = call_openai(model_choice, prompt, st.session_state.api_keys["OPENAI_API_KEY"])
         elif api_choice == "Gemini":
-            if not gemini_key:
+            if not st.session_state.api_keys["GOOGLE_API_KEY"]:
                 st.error("Please enter your Gemini API key.")
             else:
-                response = call_gemini(model_choice, prompt, gemini_key)
+                response = call_gemini(model_choice, prompt, st.session_state.api_keys["GOOGLE_API_KEY"])
         elif api_choice == "Hugging Face":
-            if not hf_key:
+            if not st.session_state.api_keys["HF_API_KEY"]:
                 st.error("Please enter your Hugging Face API key.")
             else:
-                response = call_huggingface(model_choice, prompt, hf_key)
+                response = call_huggingface(model_choice, prompt, st.session_state.api_keys["HF_API_KEY"])
         elif api_choice == "Meta (LLaMA)":
-            if not meta_key:
+            if not st.session_state.api_keys["META_API_KEY"]:
                 st.error("Please enter your Meta (LLaMA) API key.")
             else:
-                response = call_meta(model_choice, prompt, meta_key)
+                response = call_meta(model_choice, prompt, st.session_state.api_keys["META_API_KEY"])
 
         st.markdown(f"**AI:** {response}")
         st.session_state.history.append({"user": prompt, "ai": response})
