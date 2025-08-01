@@ -1,0 +1,3 @@
+([('MultimodalLLMPlayground',
+   '/Users/shiv/multimodal-llm-playground/dist/MultimodalLLMPlayground',
+   'EXECUTABLE')],)
