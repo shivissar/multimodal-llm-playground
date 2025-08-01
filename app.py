@@ -3,6 +3,52 @@ import streamlit as st
 # --- Header ---
 st.markdown("<h1 style='text-align:center;'>LLM Switchboard by Shiv Issar</h1>", unsafe_allow_html=True)
 
+# Usage guide section
+with st.expander("ℹ️ How to Use LLM Switchboard"):
+    st.markdown("""
+**Welcome to LLM Switchboard by Shiv Issar!**  
+This app lets you try multiple large language models (LLMs) from different providers in one place.  
+Follow these tips to get the best experience:
+
+---
+
+### 1. Getting Started
+- Enter your **API key(s)** in the sidebar for the services you want to use:
+  - OpenAI, Gemini (Google), Hugging Face, or Meta (LLaMA).
+- You only need to provide a key for the API you plan to use.
+- **Keys are not stored** — you’ll need to re-enter them every session.
+
+---
+
+### 2. Writing Prompts
+- Type your question or request in the text box.
+- Pick the **model** you want to use from the dropdown.
+- Click **Run** to get a response.
+
+---
+
+### 3. Things to Know
+- **No chat memory:** Each prompt is independent — previous messages are not remembered.
+- **Text-only prompts:** This version doesn’t support file uploads.
+
+---
+
+### 4. Cost & Token Info
+- The app shows an **estimated token count** and **approximate cost** (not exact billing).
+- Costs are based on public pricing for each model and may vary.
+
+---
+
+### 5. Managing Your Session
+- Export your chat history anytime with the **Export** button.
+- Refreshing or closing the page clears all prompts, responses, and keys.
+
+---
+
+Enjoy experimenting with multiple LLMs in one unified interface!
+    """)
+
+
 # --- Run Button Fix ---
 _original_button = st.button
 _click_id = {"last": 0}
