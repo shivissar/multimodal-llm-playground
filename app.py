@@ -1,4 +1,26 @@
 import streamlit as st
+
+# --- Header ---
+st.markdown("<h1 style='text-align:center;'>LLM Switchboard by Shiv Issar</h1>", unsafe_allow_html=True)
+
+# --- Run Button Fix ---
+_original_button = st.button
+_click_id = {"last": 0}
+
+def fixed_button(label, **kwargs):
+    """
+    Prevents duplicate triggers for the Run button.
+    """
+    clicked = _original_button(label, **kwargs)
+    if clicked:
+        _click_id["last"] += 1
+        return _click_id["last"]
+    return None
+
+# Monkey-patch st.button globally
+st.button = fixed_button
+
+import streamlit as st
 import requests
 import os
 import openai
