@@ -1,91 +1,56 @@
 import streamlit as st
-from openai import OpenAI
-import google.generativeai as genai
 import requests
 import os
+import base64
+from datetime import datetime
+import openai
+import google.generativeai as genai
 
 # ----------------------------
-# APP CONFIG
+# CONFIG
 # ----------------------------
-st.set_page_config(page_title="Multimodal LLM Playground", layout="wide")
+st.set_page_config(page_title="Multimodal LLM Runner", layout="wide")
 
-# ----------------------------
-# SESSION STATE INIT
-# ----------------------------
-if "api_keys" not in st.session_state:
-    st.session_state.api_keys = {
-        "OPENAI_API_KEY": "",
-        "GOOGLE_API_KEY": "",
-        "HF_TOKEN": "",
-        "META_API_KEY": ""
-    }
+# Approx costs (USD per 1K tokens)
+MODEL_COSTS = {
+    "gpt-4.1": 0.01,
+    "gpt-4o": 0.005,
+    "gpt-4-turbo": 0.01,
+    "gemini-1.5-pro": 0.005,
+    "gemini-1.5-flash": 0.002,
+    "pixtral-12b": 0.002,
+    "aria": 0.002,
+    "llava": 0.0  # Local Ollama (free)
+}
 
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+
+# Initialize session state
 if "history" not in st.session_state:
     st.session_state.history = []
-
 if "total_cost" not in st.session_state:
     st.session_state.total_cost = 0.0
 
 # ----------------------------
-# COST TABLE (USD per 1K tokens, approx.)
+# HELPER FUNCTIONS
 # ----------------------------
-COST_TABLE = {
-    "gpt-4o": 0.005,        # example
-    "gpt-4o-mini": 0.002,
-    "gemini-1.5-pro": 0.004,
-    "gemini-1.5-flash": 0.001,
-    "Pixtral-12B": 0.0005,  # Hugging Face models (rough)
-    "Aria": 0.0005,
-    "llama-3-8b": 0.0004    # Meta models placeholder
-}
+def estimate_cost(prompt: str, model: str):
+    """Estimate token count and cost for selected model."""
+    token_count = max(1, len(prompt) // 4)  # Approx: 4 chars per token
+    cost_per_1k = MODEL_COSTS.get(model, 0)
+    cost_estimate = (token_count / 1000) * cost_per_1k
+    return token_count, cost_estimate
 
-# ----------------------------
-# HELPER: Estimate Tokens & Cost
-# ----------------------------
-def estimate_tokens_and_cost(text, model):
-    # Approx: 1 token ≈ 4 chars
-    tokens = len(text) // 4
-    rate = COST_TABLE.get(model, 0.001)
-    cost = tokens / 1000 * rate
-    return tokens, cost
+def call_ollama(prompt):
+    payload = {"model": "llava", "prompt": prompt, "stream": False}
+    resp = requests.post(OLLAMA_URL, json=payload)
+    resp.raise_for_status()
+    return resp.json().get("response", "No response key in Ollama output.")
 
-# ----------------------------
-# FETCH MODEL LISTS
-# ----------------------------
-def fetch_openai_models(api_key):
-    try:
-        client = OpenAI(api_key=api_key)
-        return [m.id for m in client.models.list().data if "gpt" in m.id]
-    except Exception:
-        # fallback
-        return ["gpt-4o", "gpt-4o-mini"]
-
-def fetch_gemini_models(api_key):
-    try:
-        genai.configure(api_key=api_key)
-        # Hardcode since Google doesn’t expose list endpoint
-        return ["gemini-1.5-pro", "gemini-1.5-flash"]
-    except Exception:
-        return ["gemini-1.5-pro", "gemini-1.5-flash"]
-
-def fetch_huggingface_models(api_key):
-    # Placeholder: dynamic listing requires HF API call, but here is static
-    return ["Pixtral-12B", "Aria"]
-
-def fetch_meta_models(api_key):
-    # Placeholder for Meta (LLaMA) models
-    return ["llama-3-8b", "llama-3-70b"]
-
-# ----------------------------
-# API CALL FUNCTIONS
-# ----------------------------
 def call_openai(model_name, prompt, api_key):
-    client = OpenAI(api_key=api_key)
+    client = openai.OpenAI(api_key=api_key)
     messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
-    completion = client.chat.completions.create(
-        model=model_name,
-        messages=messages
-    )
+    completion = client.chat.completions.create(model=model_name, messages=messages)
     return completion.choices[0].message.content
 
 def call_gemini(model_name, prompt, api_key):
@@ -96,110 +61,88 @@ def call_gemini(model_name, prompt, api_key):
 
 def call_huggingface(model_name, prompt, api_key):
     headers = {"Authorization": f"Bearer {api_key}"}
-    model_map = {
-        "Pixtral-12B": "mistralai/Pixtral-12B",
-        "Aria": "openaccess-ai-collective/Aria"
-    }
-    url = f"https://api-inference.huggingface.co/models/{model_map.get(model_name)}"
-    resp = requests.post(url, headers=headers, json={"inputs": prompt})
-    try:
-        return resp.json()[0].get("generated_text", str(resp.json()))
-    except Exception:
-        return str(resp.json())
-
-def call_meta(model_name, prompt, api_key):
-    # Placeholder: Meta API endpoint not public
-    return f"[Meta model {model_name}] Response simulation: {prompt[:50]}..."
+    hf_url = f"https://api-inference.huggingface.co/models/{model_name}"
+    data = {"inputs": prompt}
+    resp = requests.post(hf_url, headers=headers, json=data)
+    resp.raise_for_status()
+    return resp.json()[0].get('generated_text', str(resp.json()))
 
 # ----------------------------
-# SIDEBAR: API KEYS & SETTINGS
+# UI - SIDEBAR FOR API KEYS
 # ----------------------------
 st.sidebar.header("API Keys")
-st.sidebar.caption("Enter any available keys. At least one is required to run.")
+openai_key = st.sidebar.text_input("OpenAI Key", type="password")
+gemini_key = st.sidebar.text_input("Google Gemini Key", type="password")
+hf_key = st.sidebar.text_input("Hugging Face Key", type="password")
 
-openai_key = st.sidebar.text_input("OpenAI Key", value=st.session_state.api_keys["OPENAI_API_KEY"], type="password")
-gemini_key = st.sidebar.text_input("Google Gemini Key", value=st.session_state.api_keys["GOOGLE_API_KEY"], type="password")
-hf_key = st.sidebar.text_input("Hugging Face Key", value=st.session_state.api_keys["HF_TOKEN"], type="password")
-meta_key = st.sidebar.text_input("Meta (LLaMA) Key", value=st.session_state.api_keys["META_API_KEY"], type="password")
+# Reset cost button
+if st.sidebar.button("Reset Total Cost"):
+    st.session_state.total_cost = 0.0
+st.sidebar.markdown(f"### Running Total Cost: ${st.session_state.total_cost:.2f}")
 
-# Save keys
-if st.sidebar.button("Save Keys"):
-    st.session_state.api_keys.update({
-        "OPENAI_API_KEY": openai_key,
-        "GOOGLE_API_KEY": gemini_key,
-        "HF_TOKEN": hf_key,
-        "META_API_KEY": meta_key
-    })
-    st.sidebar.success("Keys saved to session.")
+# ----------------------------
+# UI - MAIN APP
+# ----------------------------
+st.title("🔮 Multimodal LLM Runner (Text Only)")
+st.write("Interact with OpenAI, Gemini, Hugging Face, or local Ollama models.")
 
-# API Selection
-api_choice = st.sidebar.selectbox("Choose API", ["OpenAI", "Gemini", "Hugging Face", "Meta (LLaMA)"])
+# API Choice
+api_choice = st.selectbox("Choose API", ["Offline (Ollama)", "OpenAI", "Gemini", "Hugging Face"])
 
-# Dynamic Model Fetch
+# Dynamic model options
 if api_choice == "OpenAI":
-    models = fetch_openai_models(openai_key) if openai_key else ["gpt-4o", "gpt-4o-mini"]
+    model_options = ["gpt-4.1", "gpt-4o", "gpt-4-turbo"]
 elif api_choice == "Gemini":
-    models = fetch_gemini_models(gemini_key) if gemini_key else ["gemini-1.5-pro", "gemini-1.5-flash"]
+    model_options = ["gemini-1.5-pro", "gemini-1.5-flash"]
 elif api_choice == "Hugging Face":
-    models = fetch_huggingface_models(hf_key) if hf_key else ["Pixtral-12B", "Aria"]
+    model_options = ["mistralai/pixtral-12b", "openaccess-ai-collective/aria"]
 else:
-    models = fetch_meta_models(meta_key)
+    model_options = ["llava"]
 
-model_choice = st.sidebar.selectbox("Model", models)
+model_choice = st.selectbox("Choose Model", model_options)
 
-# Show cost summary
-st.sidebar.markdown("---")
-st.sidebar.markdown(f"**Total Estimated Cost:** ${st.session_state.total_cost:.4f}")
-
-# ----------------------------
-# MAIN APP
-# ----------------------------
-st.title("🔮 Multimodal LLM Playground (Text Only)")
-
+# Prompt input
 prompt = st.text_area("Enter your prompt:")
 
+# Token & cost estimate
+tokens, cost = estimate_cost(prompt, model_choice)
+st.caption(f"**Estimated tokens:** {tokens:,} | **Estimated cost:** ~${cost:.2f} USD")
+
+# Run button
 if st.button("Run", type="primary"):
-    if api_choice == "OpenAI" and not openai_key:
-        st.error("Please enter OpenAI API Key in sidebar.")
-    elif api_choice == "Gemini" and not gemini_key:
-        st.error("Please enter Google Gemini API Key in sidebar.")
-    elif api_choice == "Hugging Face" and not hf_key:
-        st.error("Please enter Hugging Face API Key in sidebar.")
-    elif api_choice == "Meta (LLaMA)" and not meta_key:
-        st.error("Please enter Meta API Key in sidebar.")
-    else:
-        try:
-            # Dispatch to proper API
-            if api_choice == "OpenAI":
+    try:
+        # Validate API keys
+        if api_choice == "OpenAI" and not openai_key:
+            st.error("Please enter your OpenAI API key in the sidebar.")
+        elif api_choice == "Gemini" and not gemini_key:
+            st.error("Please enter your Gemini API key in the sidebar.")
+        elif api_choice == "Hugging Face" and not hf_key:
+            st.error("Please enter your Hugging Face API key in the sidebar.")
+        else:
+            # Dispatch API call
+            if api_choice == "Offline (Ollama)":
+                response = call_ollama(prompt)
+            elif api_choice == "OpenAI":
                 response = call_openai(model_choice, prompt, openai_key)
             elif api_choice == "Gemini":
                 response = call_gemini(model_choice, prompt, gemini_key)
             elif api_choice == "Hugging Face":
                 response = call_huggingface(model_choice, prompt, hf_key)
-            else:
-                response = call_meta(model_choice, prompt, meta_key)
 
-            # Token & cost estimation
-            tokens, cost = estimate_tokens_and_cost(prompt + response, model_choice)
-            st.session_state.total_cost += cost
-
-            # Save to history
+            # Display response
+            st.markdown(f"**AI:** {response}")
             st.session_state.history.append({"user": prompt, "ai": response})
 
-            # Display
-            st.success("Response:")
-            st.write(response)
-            st.caption(f"~{tokens} tokens, estimated ${cost:.4f}")
+            # Update running cost
+            st.session_state.total_cost += cost
+            st.sidebar.markdown(f"### Running Total Cost: ${st.session_state.total_cost:.2f}")
 
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
 
-# ----------------------------
-# HISTORY
-# ----------------------------
+# Display history
 if st.session_state.history:
     st.markdown("---")
-    st.subheader("Conversation History")
     for h in reversed(st.session_state.history):
         st.markdown(f"**You:** {h['user']}")
         st.markdown(f"**AI:** {h['ai']}")
