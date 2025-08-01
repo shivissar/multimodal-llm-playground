@@ -321,23 +321,7 @@ except Exception as e:
 import time
 import traceback
 
-# --- 1. Conversation Memory Toggle ---
-if "memory_enabled" not in st.session_state:
-    st.session_state.memory_enabled = False
-
-st.sidebar.checkbox("Enable Conversation Memory", key="memory_enabled")
-
-# Modify prompt if memory is enabled
-def apply_conversation_memory(prompt: str):
-    if st.session_state.memory_enabled and st.session_state.history:
-        history_text = "\n".join(
-            [f"User: {h['user']}\nAI: {h['ai']}" for h in st.session_state.history]
-        )
-        return f"{history_text}\nUser: {prompt}"
-    return prompt
-
-
-# --- 2. Latency + Cost Tracker ---
+# --- 1. Latency + Cost Tracker ---
 if "latencies" not in st.session_state:
     st.session_state.latencies = []
 if "cost" not in st.session_state:
@@ -367,8 +351,8 @@ def track_performance(start_time, model_name, token_estimate=500):
 # --- 3. CSS UI Refresh ---
 st.markdown("""
 <style>
+    /* Respect dark/light theme; no forced background */
     .stApp {
-        background: linear-gradient(to right, #f8f9fa, #e9ecef);
         font-family: 'Helvetica Neue', sans-serif;
     }
     .stTextInput, .stTextArea {
@@ -379,6 +363,10 @@ st.markdown("""
         background-color: #4CAF50;
         color: white;
         font-weight: bold;
+        transition: background-color 0.3s ease;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
     }
 </style>
 """, unsafe_allow_html=True)
