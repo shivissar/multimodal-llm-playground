@@ -178,7 +178,9 @@ if st.button("Run", type="primary"):
                 response = call_meta(model_choice, prompt, st.session_state.api_keys["META_API_KEY"])
 
         st.markdown(f"**AI:** {response}")
-        st.session_state.history.append({"user": prompt, "ai": response})
+        # --- FIX: Prevent duplicate history entries ---
+        if not st.session_state.history or st.session_state.history[-1]["ai"] != response:
+            st.session_state.history.append({"user": prompt, "ai": response})
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
